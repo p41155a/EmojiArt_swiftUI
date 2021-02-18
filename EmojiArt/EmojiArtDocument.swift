@@ -10,10 +10,10 @@ import SwiftUI
 class EmojiArtDocument: ObservableObject {
     static let palette: String = "⭐️☁️🍎🍋🥝🍗🍔🍟"
     
-    //@Published // workaround for property observer problem with property wappers
+    //@Published // workaround(해결방법) for property observer(ex.willSet) problem with property wappers
     private var emojiArt: EmojiArt = EmojiArt() {
         willSet {
-            objectWillChange.send()
+            objectWillChange.send() // 값이 변동되었음을 알려주는 메서드 (published와 같은 동작을 함)
         }
         didSet {
             UserDefaults.standard.set(emojiArt.json, forKey: EmojiArtDocument.untitled)
@@ -55,9 +55,14 @@ class EmojiArtDocument: ObservableObject {
         fetchBackgroundImageData()
     }
     
+    // backgroundImage 세팅을 위한 함수
     private func fetchBackgroundImageData() {
         backgroundImage = nil
         if let url = self.emojiArt.backgroundURL {
+            // global : 지정된 서비스 품질 클래스가있는 전역 시스템 큐
+            // qos : 대기열과 연결할 서비스 품질 수준입니다. 이 값은 시스템이 실행 작업을 예약하는 우선 순위를 결정
+            // qos - user Initiated : 사용자가 앱을 적극적으로 사용하지 못하게하는 작업에 대한 서비스 품질 클래스입니다.
+            // 이외의 것들은 https://developer.apple.com/documentation/dispatch/dispatchqos/qosclass 참고
             DispatchQueue.global(qos: .userInitiated).async {
                 if let imageData = try? Data(contentsOf: url) { // 타임아웃과 같은 오류 대비
                     DispatchQueue.main.async {

@@ -17,10 +17,11 @@ struct EmojiArtDocumentView: View {
                 HStack {
                     // '\'는 key path임을 나타내고 '.'은 self를 연결하기 위함??
                     ForEach(EmojiArtDocument.palette.map { String($0) }, id: \.self) { emoji in
-                        // 각 이모지
-                        Text(emoji)
-                            .font(Font.system(size: self.defaultEmojiSize))
+                        Text(emoji) // 각 이모지
+                            .font(.system(size: defaultEmojiSize))
                             .onDrag { NSItemProvider(object: emoji as NSString) }
+                        // NSItemProvider : 끌어서 놓기 또는 복사 / 붙여 넣기 작업 중 또는 호스트 앱에서 앱 확장으로 프로세스간에 데이터 또는 파일을 전달하기위한 항목 공급자
+                        // init(object:) 지정된 개체의 형식 식별자를 사용하여 공급자가 로드 할 수있는 데이터 표현을 지정하여 새 항목 공급자를 초기화합니다.
                     }
                 }
             }
@@ -29,32 +30,35 @@ struct EmojiArtDocumentView: View {
             GeometryReader { geometry in
                 ZStack {
                     Color.white.overlay(
-                        OptionalImage(uiImage: self.document.backgroundImage)
-                            .scaleEffect(self.zoomScale)
-                            .offset(self.panOffset)
+                        OptionalImage(uiImage: document.backgroundImage)
+                            .scaleEffect(zoomScale)
+                            .offset(panOffset)
                     )
-                    .gesture(self.doubleTapToZoom(in: geometry.size))
-                    // 드래그 되어 있는 이모지
-                    ForEach(self.document.emojis) { emoji in
+                    .gesture(doubleTapToZoom(in: geometry.size))
+                    // 이미지 위에 놓여있는 이모지
+                    ForEach(document.emojis) { emoji in
                         Text(emoji.text)
                             .font(animatableWithSize: emoji.fontSize * zoomScale)
                             .position(self.position(for: emoji, in: geometry.size))
                     }
                 }
-                .clipped()
-                .gesture(self.panGesture())
-                .gesture(self.zoomGesture())
+                .clipped() // 뷰를 경계 직사각형 프레임으로 자름
+                .gesture(panGesture())
+                .gesture(zoomGesture())
                 .edgesIgnoringSafeArea([.horizontal, .bottom])
+                // of: 끌어서 놓기를 통해 허용 할 수있는 콘텐츠 유형을 설명하는 유형 식별자
+                // isTargeted: 끌어서 놓기 작업이 놓기 대상 영역에 들어가거나 나올 때 업데이트되는 바인딩
+                // 바인딩 값이 true -> 커서가 영역 내부에 있을 때 / false -> 외부
                 .onDrop(of: ["public.image","public.text"], isTargeted: nil) { providers, location in
-                    // SwiftUI bug (as of 13.4)? the location is supposed to be in our coordinate system
-                    // however, the y coordinate appears to be in the global coordinate system
+                    // SwiftUI bug (as of 13.4)?
+                    // 위치는 우리 좌표계에 있어야합니다. 그러나 y 좌표는 전역 좌표계에있는 것처럼 보입니다.
                     var location = CGPoint(x: location.x, y: geometry.convert(location, from: .global).y)
-                    // ❓🤔 왜 geometry로 convert
                     location = CGPoint(x: location.x - geometry.size.width/2, y: location.y - geometry.size.height/2) // 이렇게 해서 중앙으로 만듬
-                    location = CGPoint(x: location.x - self.panOffset.width, y: location.y - self.panOffset.height)
-                    location = CGPoint(x: location.x / self.zoomScale, y: location.y / self.zoomScale )
+                    location = CGPoint(x: location.x - panOffset.width, y: location.y - panOffset.height)
+                    print(zoomScale)
+                    location = CGPoint(x: location.x / zoomScale, y: location.y / zoomScale )
                     // ❓🤔 포인트가 왜 이렇게 되는지 모르겠는데..ㅎ
-                    return self.drop(providers: providers, at: location)
+                    return drop(providers: providers, at: location)
                 }
             }
         }
@@ -73,7 +77,7 @@ struct EmojiArtDocumentView: View {
                 gestureZoomScale = latestGestureScale
             }
             .onEnded { finalGestureScale in
-                self.steadyStateZoomScale *= finalGestureScale
+                steadyStateZoomScale *= finalGestureScale
             }
     }
     
@@ -91,7 +95,7 @@ struct EmojiArtDocumentView: View {
                 gesturePanOffset = latestDragGestureValue.translation / self.zoomScale
         }
         .onEnded { finalDragGestureValue in
-            self.steadyStatePanOffset = self.steadyStatePanOffset + (finalDragGestureValue.translation / self.zoomScale)
+            steadyStatePanOffset = steadyStatePanOffset + (finalDragGestureValue.translation / zoomScale)
         }
     }
     
@@ -99,7 +103,7 @@ struct EmojiArtDocumentView: View {
         TapGesture(count: 2)
             .onEnded {
                 withAnimation {
-                    self.zoomToFit(self.document.backgroundImage, in: size)
+                    zoomToFit(document.backgroundImage, in: size)
                 }
             }
     }
@@ -128,11 +132,11 @@ struct EmojiArtDocumentView: View {
     
     private func drop(providers: [NSItemProvider], at location: CGPoint) -> Bool {
         var found = providers.loadFirstObject(ofType: URL.self) { url in
-            self.document.setBackgroundURL(url)
+            document.setBackgroundURL(url)
         }
         if !found {
             found = providers.loadObjects(ofType: String.self) { string in
-                self.document.addEmoji(string, at: location, size: self.defaultEmojiSize)
+                document.addEmoji(string, at: location, size: defaultEmojiSize)
             }
         }
         return found
