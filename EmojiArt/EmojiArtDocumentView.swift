@@ -10,22 +10,27 @@ import SwiftUI
 struct EmojiArtDocumentView: View {
     @ObservedObject var document: EmojiArtDocument
     
+    @State private var chosenPalette: String = ""
+    
     var body: some View {
         VStack {
             // 상단 스크롤 바
-            ScrollView(.horizontal) {
-                HStack {
-                    // '\'는 key path임을 나타내고 '.'은 self를 연결하기 위함??
-                    ForEach(EmojiArtDocument.palette.map { String($0) }, id: \.self) { emoji in
-                        Text(emoji) // 각 이모지
-                            .font(.system(size: defaultEmojiSize))
-                            .onDrag { NSItemProvider(object: emoji as NSString) }
-                        // NSItemProvider : 끌어서 놓기 또는 복사 / 붙여 넣기 작업 중 또는 호스트 앱에서 앱 확장으로 프로세스간에 데이터 또는 파일을 전달하기위한 항목 공급자
-                        // init(object:) 지정된 개체의 형식 식별자를 사용하여 공급자가 로드 할 수있는 데이터 표현을 지정하여 새 항목 공급자를 초기화합니다.
+            HStack {
+                PaletteChooser(document: document, chosenPalette: $chosenPalette)
+                ScrollView(.horizontal) {
+                    HStack {
+                        // '\'는 key path임을 나타내고 '.'은 self를 연결하기 위함??
+                        ForEach(chosenPalette.map { String($0) }, id: \.self) { emoji in
+                            Text(emoji) // 각 이모지
+                                .font(.system(size: defaultEmojiSize))
+                                .onDrag { NSItemProvider(object: emoji as NSString) }
+                            // NSItemProvider : 끌어서 놓기 또는 복사 / 붙여 넣기 작업 중 또는 호스트 앱에서 앱 확장으로 프로세스간에 데이터 또는 파일을 전달하기위한 항목 공급자
+                            // init(object:) 지정된 개체의 형식 식별자를 사용하여 공급자가 로드 할 수있는 데이터 표현을 지정하여 새 항목 공급자를 초기화합니다.
+                        }
                     }
                 }
+                .onAppear { self.chosenPalette = self.document.defaultPalette }
             }
-            .padding(.horizontal)
             // 스크롤 아래 이미지뷰
             GeometryReader { geometry in
                 ZStack {
@@ -36,16 +41,23 @@ struct EmojiArtDocumentView: View {
                     )
                     .gesture(doubleTapToZoom(in: geometry.size))
                     // 이미지 위에 놓여있는 이모지
-                    ForEach(document.emojis) { emoji in
-                        Text(emoji.text)
-                            .font(animatableWithSize: emoji.fontSize * zoomScale)
-                            .position(self.position(for: emoji, in: geometry.size))
+                    if self.isLoading {
+                        Image(systemName: "hourglass").imageScale(.large).spinning()
+                    } else {
+                        ForEach(document.emojis) { emoji in
+                            Text(emoji.text)
+                                .font(animatableWithSize: emoji.fontSize * zoomScale)
+                                .position(self.position(for: emoji, in: geometry.size))
+                        }
                     }
                 }
                 .clipped() // 뷰를 경계 직사각형 프레임으로 자름
                 .gesture(panGesture())
                 .gesture(zoomGesture())
                 .edgesIgnoringSafeArea([.horizontal, .bottom])
+                .onReceive(self.document.$backgroundImage) { image in
+                    self.zoomToFit(image, in: geometry.size)
+                }
                 // of: 끌어서 놓기를 통해 허용 할 수있는 콘텐츠 유형을 설명하는 유형 식별자
                 // isTargeted: 끌어서 놓기 작업이 놓기 대상 영역에 들어가거나 나올 때 업데이트되는 바인딩
                 // 바인딩 값이 true -> 커서가 영역 내부에 있을 때 / false -> 외부
@@ -55,13 +67,16 @@ struct EmojiArtDocumentView: View {
                     var location = CGPoint(x: location.x, y: geometry.convert(location, from: .global).y)
                     location = CGPoint(x: location.x - geometry.size.width/2, y: location.y - geometry.size.height/2) // 이렇게 해서 중앙으로 만듬
                     location = CGPoint(x: location.x - panOffset.width, y: location.y - panOffset.height)
-                    print(zoomScale)
                     location = CGPoint(x: location.x / zoomScale, y: location.y / zoomScale )
                     // ❓🤔 포인트가 왜 이렇게 되는지 모르겠는데..ㅎ
                     return drop(providers: providers, at: location)
                 }
             }
         }
+    }
+    
+    var isLoading: Bool {
+        document.backgroundURL != nil && document.backgroundImage == nil
     }
     
     @State private var steadyStateZoomScale: CGFloat = 1.0
@@ -93,10 +108,10 @@ struct EmojiArtDocumentView: View {
         DragGesture()
             .updating($gesturePanOffset) { latestDragGestureValue, gesturePanOffset, transaction in
                 gesturePanOffset = latestDragGestureValue.translation / self.zoomScale
-        }
-        .onEnded { finalDragGestureValue in
-            steadyStatePanOffset = steadyStatePanOffset + (finalDragGestureValue.translation / zoomScale)
-        }
+            }
+            .onEnded { finalDragGestureValue in
+                steadyStatePanOffset = steadyStatePanOffset + (finalDragGestureValue.translation / zoomScale)
+            }
     }
     
     private func doubleTapToZoom(in size: CGSize) -> some Gesture {
@@ -117,11 +132,11 @@ struct EmojiArtDocumentView: View {
         }
     }
     
-//    private func font(for emoji: EmojiArt.Emoji) -> Font {
-//        Font.system(size: emoji.fontSize * zoomScale)
-//    }
+    //    private func font(for emoji: EmojiArt.Emoji) -> Font {
+    //        Font.system(size: emoji.fontSize * zoomScale)
+    //    }
     
-//     화면에 놓여진 이모지의 위치를 화면에 맞게 바꾸어주는 함수
+    //     화면에 놓여진 이모지의 위치를 화면에 맞게 바꾸어주는 함수
     private func position(for emoji: EmojiArt.Emoji, in size: CGSize) -> CGPoint {
         var location = emoji.location
         location = CGPoint(x: location.x * zoomScale, y: location.y * zoomScale)
@@ -132,7 +147,7 @@ struct EmojiArtDocumentView: View {
     
     private func drop(providers: [NSItemProvider], at location: CGPoint) -> Bool {
         var found = providers.loadFirstObject(ofType: URL.self) { url in
-            document.setBackgroundURL(url)
+            document.backgroundURL = url
         }
         if !found {
             found = providers.loadObjects(ofType: String.self) { string in
