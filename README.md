@@ -1,4 +1,4 @@
-<img width="848" alt="스크린샷 2021-05-17 오전 11 39 01" src="https://user-images.githubusercontent.com/50395024/118425616-82f86080-b704-11eb-9fcf-27773b02fae6.png">
+<img src="https://user-images.githubusercontent.com/50395024/118425616-82f86080-b704-11eb-9fcf-27773b02fae6.png" width=350>
 
 
 ## [Lecture 7 - Multithreading EmojiArt](https://cs193p.sites.stanford.edu/sites/g/files/sbiybj16636/files/media/file/lecture_7_0.pdf )
